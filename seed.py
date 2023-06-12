@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 import random
 from faker import Faker
 from app import app
-from models import db, Student, Teacher, Lesson, Enrollment, Feedback, Payment
+from config import db
+from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
 from assets.avatars import student_avatars, teacher_avatars
 fake = Faker()
 
