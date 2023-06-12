@@ -13,6 +13,7 @@ sqlalchemy = "4.6.3"
 flask-bcrypt = "1.0.1"
 faker = "18.10.1"
 flask-cors = "3.0.10"
+python-dotenv = "1.0.0"
 
 [dev-packages]
 
