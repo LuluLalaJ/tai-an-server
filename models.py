@@ -8,17 +8,17 @@ from config import db, bcrypt
 class Student(db.Model, SerializerMixin):
     __tablename__ = "students"
 
-    serialize_rules = ("-enrollments.lesson",)
+    serialize_rules = ("-enrollments.lesson", "-feedbacks")
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
-    _password_hash = db.Column(db.String, nullable=False)
+    _password_hash = db.Column(db.String)
     first_name = db.Column(db.String, nullable=False)
     last_name = db.Column(db.String, nullable=False)
     avatar = db.Column(db.String)
     lesson_credit = db.Column(db.Numeric(8, 2), default=0)
-    phone = db.Column(db.Integer)
+    phone = db.Column(db.String)
     address_line1 = db.Column(db.String)
     address_line2 = db.Column(db.String)
     city = db.Column(db.String)
@@ -28,6 +28,7 @@ class Student(db.Model, SerializerMixin):
     updated_at = db.Column(db.DateTime, onupdate=db.func.now())
 
     enrollments = db.relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")
+    feedbacks = db.relationship("Feedback", back_populates="student", cascade="all, delete-orphan")
     lessons = association_proxy('enrollments', 'lesson')
 
     @hybrid_property
@@ -36,14 +37,16 @@ class Student(db.Model, SerializerMixin):
 
     @password_hash.setter
     def password_hash(self, password):
-        password_hash = bcrypt.generate_password_hash(password.encode('utf-8'))
+        password_hash = bcrypt.generate_password_hash(password.encode('utf-8') )
         self._password_hash = password_hash.decode('utf-8')
 
     def authenticate(self, password):
-        return bcrypt.check_password_hash(self._password_hash, password.encode('utf-8'))
-
+        return bcrypt.check_password_hash(
+            self._password_hash, password.encode('utf-8')
+        )
     def __repr__(self):
         return f'<Student: {self.id} {self.first_name} {self.last_name}>'
+
 
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = "teachers"
@@ -53,13 +56,13 @@ class Teacher(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
-    _password_hash = db.Column(db.String, nullable=False)
+    _password_hash = db.Column(db.String)
     first_name = db.Column(db.String, nullable=False)
     last_name = db.Column(db.String, nullable=False)
     avatar = db.Column(db.String)
     teaching_since = db.Column(db.DateTime)
     bio = db.Column(db.String, nullable=False)
-    phone = db.Column(db.Integer)
+    phone = db.Column(db.String)
     address_line1 = db.Column(db.String)
     address_line2 = db.Column(db.String)
     city = db.Column(db.String)
