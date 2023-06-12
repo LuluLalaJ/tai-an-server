@@ -3,6 +3,7 @@ import random
 from faker import Faker
 from app import app
 from models import db, Student, Teacher, Lesson, Enrollment, Feedback, Payment
+from assets.avatars import student_avatars, teacher_avatars
 fake = Faker()
 
 # Clear data from students table
@@ -37,7 +38,7 @@ def clear_payments():
 
 # Seed fake data for students
 def seed_students(num_students):
-    for _ in range(num_students):
+    for i in range(num_students):
         username = fake.unique.user_name()
         email = fake.unique.email()
         password = username + "hello"
@@ -46,7 +47,7 @@ def seed_students(num_students):
             email=email,
             first_name=fake.first_name(),
             last_name=fake.last_name(),
-            avatar=fake.image_url(),
+            avatar=student_avatars[i],
             lesson_credit=random.randint(0, 300),
             phone=fake.phone_number(),
             address_line1=fake.street_address(),
@@ -62,7 +63,7 @@ def seed_students(num_students):
 
 # Seed fake data for teachers
 def seed_teachers(num_teachers):
-    for _ in range(num_teachers):
+    for i in range(num_teachers):
         username = fake.unique.first_name()
         email = fake.unique.email()
         password = username + "hello"
@@ -71,7 +72,7 @@ def seed_teachers(num_teachers):
             email=email,
             first_name=fake.first_name(),
             last_name=fake.last_name(),
-            avatar=fake.image_url(),
+            avatar=teacher_avatars[i],
             teaching_since=fake.date_this_century(),
             bio=fake.text(),
             phone=fake.phone_number(),
