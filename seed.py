@@ -125,18 +125,25 @@ def seed_enrollments(num_enrollments, num_students, num_lessons):
     students = Student.query.limit(num_students).all()
     lessons = Lesson.query.limit(num_lessons).all()
 
-    enrollment_statuses = ['registered', 'cancelled', 'waitlist']
 
     for _ in range(num_enrollments):
         student = fake.random_element(students)
         lesson = fake.random_element(lessons)
+
+        if lesson.is_full:
+            status = random.choice(['waitlisted', 'cancelled'])
+        else:
+            status = random.choice(['registered', 'cancelled', 'waitlisted'])
+
         enrollment = Enrollment(
             cost=lesson.price,
-            status=fake.random_element(elements=enrollment_statuses),
+            status=status,
             student=student,
             lesson=lesson
         )
+
         db.session.add(enrollment)
+        lesson.update_is_full()
 
     db.session.commit()
 

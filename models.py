@@ -10,6 +10,12 @@ class Student(db.Model, SerializerMixin):
 
     serialize_rules = ("-enrollments.lesson", "-feedbacks")
 
+    # serialize_rules = (
+    #     ("-enrollments.lesson.teacher", "-enrollments.lesson.enrollments.student"),
+    #     "-feedbacks"
+    # )
+
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
@@ -30,6 +36,8 @@ class Student(db.Model, SerializerMixin):
     enrollments = db.relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")
     feedbacks = db.relationship("Feedback", back_populates="student", cascade="all, delete-orphan")
     lessons = association_proxy('enrollments', 'lesson')
+    teachers = association_proxy('enrollments', 'lesson.teacher', creator=lambda teacher: Enrollment(lesson=Lesson(teacher=teacher)))
+
 
     @hybrid_property
     def password_hash(self):
@@ -47,11 +55,15 @@ class Student(db.Model, SerializerMixin):
     def __repr__(self):
         return f'<Student: {self.id} {self.first_name} {self.last_name}>'
 
-
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = "teachers"
 
     serialize_rules = ("-lessons",)
+
+    # serialize_rules = (
+    #     ("-lessons.enrollments.student", "-lessons.enrollments.lesson.teacher"),
+    # )
+
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
@@ -72,6 +84,8 @@ class Teacher(db.Model, SerializerMixin):
     updated_at = db.Column(db.DateTime, onupdate=db.func.now())
 
     lessons = db.relationship("Lesson", back_populates="teacher", cascade="all, delete-orphan")
+    students = association_proxy('lessons', 'enrollments.student', creator=lambda student: Enrollment(student=student))
+
 
     @hybrid_property
     def password_hash(self):
@@ -101,12 +115,17 @@ class Lesson(db.Model, SerializerMixin):
     end = db.Column(db.DateTime, nullable=False)
     capacity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Numeric(8, 2), default=0)
+    is_full = db.Column(db.Boolean, nullable=False, default=False)
 
     teacher_id = db.Column(db.Integer, db.ForeignKey('teachers.id'))
     teacher = db.relationship("Teacher", back_populates="lessons")
 
     enrollments = db.relationship("Enrollment", back_populates="lesson", cascade="all, delete-orphan")
     feedbacks = db.relationship("Feedback", back_populates="lesson", cascade="all, delete-orphan")
+
+    def update_is_full(self):
+        enrollments = Enrollment.query.filter_by(lesson_id=self.id, status='registered').count()
+        self.is_full = enrollments >= self.capacity
 
     @validates('level')
     def check_level(self, key, level):
@@ -142,7 +161,7 @@ class Enrollment(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     cost = db.Column(db.Numeric(8, 2), default=0)
-    status = db.Column(db.Enum('registered', 'cancelled', 'waitlist', name='enrollment_status'), default='registered')
+    status = db.Column(db.Enum('registered', 'cancelled', 'waitlisted', name='enrollment_status'), default='registered')
 
 
     created_at = db.Column(db.DateTime, server_default=db.func.now())

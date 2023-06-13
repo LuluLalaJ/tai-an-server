@@ -36,8 +36,8 @@
   },
 
   {
-    "username": "Allen",
-    "password": "Allenhello",
+    "username": "Laura",
+    "password": "Laurahello",
     "role": "teacher"
   },
 
@@ -49,5 +49,9 @@
     "end": "2023-05-29 17:00:00",
     "capacity": 3,
     "price": 40
+  },
+
+  {
+    "cost": 30
   }
 ]

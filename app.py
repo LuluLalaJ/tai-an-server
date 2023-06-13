@@ -225,17 +225,38 @@ class LessonById(Resource):
 
 class LessonsByStudentId(Resource):
     def get(self, student_id):
-        if session.get('user_id'):
-            if session['role'] == 'student':
-                pass
-            elif session['role'] == 'teacher':
-                pass
-                lessons = Lesson.query.join(Enrollment).filter()
+        if not session.get('user_id'):
+            return {'error': '401 Unauthorized'}, 401
 
-        return {'error': '401 Unauthorized'}, 401
+        user_id = session['user_id']
+        role = session['role']
+
+        if role == "student" and user_id != student_id:
+            return {'error': '401 Unauthorized'}, 401
+
+        lessons_query = Lesson.query.join(Enrollment).filter(Enrollment.student_id == student_id)
+
+        if role == "teacher":
+            lessons_query = lessons_query.filter(Lesson.teacher_id == user_id)
+
+        lessons = lessons_query.all()
+
+        if not lessons:
+            return {'error': 'Lesson not found'}, 404
+
+        lessons_serialized = [l.to_dict() for l in lessons]
+        return lessons_serialized, 200
 
 class LessonsByTeacherId(Resource):
-    pass
+    def get(self, teacher_id):
+        if not session.get('user_id') or session['role'] != "teacher" or session['user_id'] != teacher_id:
+            return {'error': '401 Unauthorized'}, 401
+        lessons = Lesson.query.filter_by(teacher_id=teacher_id).all()
+        if not lessons:
+            return {'error': 'Lesson not found'}, 404
+
+        lessons_serialized = [l.to_dict() for l in lessons]
+        return lessons_serialized, 200
 
 class EnrollmentsByLessonId(Resource):
     #TEACHER GET ENROLLMENT OF THEIR OWN LESSON
@@ -259,13 +280,15 @@ class EnrollmentsByLessonId(Resource):
                 id=lesson_id
             ).first()
             if lesson:
+                status = "waitlisted" if lesson.is_full else "registered"
                 new_enrollment = Enrollment(
                     #POTENTIALLY CAN ADD DISCOUNT HERE
                     cost=lesson.price,
-                    status=True,
+                    status=status,
                     student_id=session['user_id'],
                     lesson_id=lesson_id
                 )
+                lesson.update_is_full()
                 try:
                     db.session.add(new_enrollment)
                     db.session.commit()
@@ -278,9 +301,8 @@ class EnrollmentsByLessonId(Resource):
 class IndividualEnrollmentByLessonId(Resource):
     def get(self, lesson_id, enrollment_id):
         pass
+
     def patch(self, lesson_id, enrollment_id):
-        pass
-    def delete(self, lesson_id, enrollment_id):
         if not session.get('user_id'):
             return {'error': '401 Unauthorized'}, 401
 
@@ -298,19 +320,103 @@ class IndividualEnrollmentByLessonId(Resource):
         if role == 'student':
             if enrollment.student_id != user_id:
                 return {'error': '401 Unauthorized'}, 401
+            try:
+                enrollment.status = "cancelled"
+                db.session.commit()
+                lesson.update_is_full()
+                db.session.commit()
+                return {'message': 'Lesson is cancelled'}, 200
+
+            except IntegrityError:
+                return {'error': 'Invalid input'}, 422
+
         elif role == 'teacher':
             if lesson.teacher_id != user_id:
                 return {'error': '401 Unauthorized'}, 401
+            data = request.get_json()
+            try:
+                allowed_fields = ['cost', 'status']
+                for attr, value in data.items():
+                    if attr in allowed_fields:
+                        if attr == 'status' and value not in ['registered', 'cancelled', 'waitlisted']:
+                            return {'error': 'Invalid input'}, 422
+                        if attr == 'status' and value == 'registered' and lesson.is_full:
+                            value = "waitlisted"
+                        setattr(enrollment, attr, value)
+                lesson.update_is_full()  # Check and update is_full attribute
+                db.session.commit()
+                return enrollment.to_dict(), 200
+            except IntegrityError:
+                return {'error': 'Invalid input'}, 422
+
+    def delete(self, lesson_id, enrollment_id):
+        pass
+
+class PaymentsByStudentId(Resource):
+    def get(self, student_id):
+        if not (session.get['user_id'] or session['role'] == 'student'):
+            return {'error': '401 Unauthorized'}, 401
+
+        payments = Payment.query.filter_by(student_id=student_id)
+        if not payments:
+            return {'eror': 'Payment not found'}, 404
+
+        payments_serialized = [p.to_dict() for p in payments]
+        return payments_serialized, 200
+
+class FeedbacksByStudentId(Resource):
+    pass
+
+
+class FeedbacksByLessonId(Resource):
+    pass
+
+class FeedbackByStudentAndLessonId(Resource):
+    def get(self, student_id, lesson_id):
+        if not session.get('user_id'):
+            return {'error': '401 Unauthorized'}, 401
+
+        if session['role'] == 'student':
+            if session['user_id'] != student_id:
+                return {'error': '401 Unauthorized'}, 401
+            feedback = Feedback.query.filter_by(student_id=student_id, lesson_id=lesson_id).first()
+
+        if session['role'] == 'teacher':
+            lesson = Lesson.query.filter_by(id=lesson_id).first()
+            if session['user_id'] != lesson.teacher_id:
+                return {'error': '401 Unauthorized'}, 401
+            feedback = Feedback.query.filter_by(student_id=student_id, lesson_id=lesson_id).first()
+
+        if feedback:
+            return feedback.to_dict(), 200
+        else:
+            return {'error': 'Feedback not found'}, 404
+
+class FeedbackById(Resource):
+
+    def patch(self, id):
+        if not session.get('user_id') or session['role'] == 'student':
+            return {'error': '401 Unauthorized'}, 401
+
+        feedback = Feedback.query.filter_by(id=id).first()
+
+        if not feedback:
+            return {'error': 'Feedback not found'}, 404
+
+        if session['role'] == 'teacher' and session['user_id'] != feedback.lesson.teacher_id:
+                return {'error': '401 Unauthorized'}, 401
 
         try:
-            #IS IT OKAY TO NOT ACTUALLY DELETE THE RECORD HERE
-            enrollment.status = False
+            data = request.get_json()
+            for attr, value in data.items():
+                if attr != 'message':
+                    return {'error': 'Invalid input'}, 422
+                setattr(feedback, attr, value)
+
             db.session.commit()
+            return feedback.to_dict(), 200
         except IntegrityError:
             return {'error': 'Invalid input'}, 422
-
-        return enrollment.to_dict(), 204
-
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
@@ -318,15 +424,18 @@ api.add_resource(Login, '/login', endpoint='login')
 api.add_resource(Logout, '/logout', endpoint='logout')
 api.add_resource(Teachers,'/teachers', endpoint='teachers')
 api.add_resource(TeacherById, '/teachers/<int:id>', endpoint='teacher_by_id')
-api.add_resource(StudentById, '/students/<int:id>', endpoint='student_byid')
+api.add_resource(StudentById, '/students/<int:id>', endpoint='student_by_id')
 api.add_resource(Lessons, '/lessons', endpoint='lessons')
 api.add_resource(LessonById, '/lessons/<int:id>', endpoint='lesson_by_id')
 api.add_resource(LessonsByStudentId, '/students/<int:student_id>/lessons', endpoint="lesson_by_student_id")
 api.add_resource(LessonsByTeacherId, '/teachers/<int:teacher_id>/lessons', endpoint="lesson_by_teacher_id")
 api.add_resource(EnrollmentsByLessonId, '/lessons/<int:lesson_id>/enrollments', endpoint='enrollments_by_lesson_id')
 api.add_resource(IndividualEnrollmentByLessonId, '/lessons/<int:lesson_id>/enrollments/<int:enrollment_id>', endpoint='individual_enrollment_by_lesson_id')
-
-
+api.add_resource(PaymentsByStudentId,'/students/<int:student_id>/payments', endpoint='payments_by_student_id')
+api.add_resource(FeedbacksByStudentId, '/students/<int:student_id>/feedbacks', endpoint='feedbacks_by_student_id')
+api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endpoint='feedbacks_by_lesson_id')
+api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
+api.add_resource(FeedbackById, '/feedbacks/<int:id>', endpoint='feedback_by_id')
 
 
 if __name__ == '__main__':
