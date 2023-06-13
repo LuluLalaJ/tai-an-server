@@ -1,4 +1,5 @@
-{
+[
+  {
     "username": "helloChen",
     "email": "chen@gmail.com",
     "first_name": "Chen",
@@ -6,4 +7,47 @@
     "password": "helloChenhello",
     "role": "teacher",
     "bio": "THIS IS MY INFO"
-}
+  },
+
+  {
+    "username": "helloChen",
+    "email": "chen@gmail.com",
+    "first_name": "Chen",
+    "last_name": "Jiang",
+    "password": "helloChenhello",
+    "role": "student",
+    "bio": "THIS IS MY INFO"
+  },
+
+  {
+    "username": "helloChen",
+    "email": "helloChen@gmail.com",
+    "first_name": "Chen",
+    "last_name": "Jiang",
+    "password": "helloChenhello",
+    "bio": "THIS IS MY INFO",
+    "phone": "10395860"
+  },
+
+  {
+    "username": "helloChen",
+    "password": "helloChenhello",
+    "role": "teacher"
+  },
+
+  {
+    "username": "Allen",
+    "password": "Allenhello",
+    "role": "teacher"
+  },
+
+  {
+    "title": "intro to this class",
+    "description": "this is an intro class",
+    "level": 1,
+    "start": "2023-05-29 15:00:00",
+    "end": "2023-05-29 17:00:00",
+    "capacity": 3,
+    "price": 40
+  }
+]

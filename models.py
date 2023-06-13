@@ -51,7 +51,7 @@ class Student(db.Model, SerializerMixin):
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = "teachers"
 
-    serialize_rules = ("-lessons.students",)
+    serialize_rules = ("-lessons",)
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
@@ -138,11 +138,12 @@ class Lesson(db.Model, SerializerMixin):
 class Enrollment(db.Model, SerializerMixin):
     __tablename__ = "enrollments"
 
-    serialize_rules = ("-student", "-lesson")
+    serialize_rules = ("-student.enrollments", "-student.feedbacks", "-lesson")
 
     id = db.Column(db.Integer, primary_key=True)
     cost = db.Column(db.Numeric(8, 2), default=0)
-    status = db.Column(db.Boolean)
+    status = db.Column(db.Enum('registered', 'cancelled', 'waitlist', name='enrollment_status'), default='registered')
+
 
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, onupdate=db.func.now())
@@ -202,3 +203,24 @@ class Payment(db.Model, SerializerMixin):
 
     def __repr__(self):
         return f'<Payment: {self.id} for ${self.lesson_credit}>'
+
+class ShoppingCart(db.Model, SerializerMixin):
+    __tablename__ = "shoppingcarts"
+
+    serialize_rules = ("-student",)
+
+    id = db.Column(db.Integer, primary_key=True)
+    value = db.Column(db.Numeric(8, 2), default=0)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'))
+
+    student = db.relationship("Student")
+
+    @validates('value')
+    def check_value(self, key, value):
+        if value >= 0:
+            return value
+        raise ValueError('lesson credit must be positive')
+
+    def __repr__(self):
+        return f'<ShoppingCart: {self.id} ${self.value}>'
