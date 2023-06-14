@@ -17,18 +17,14 @@ class Signup(Resource):
             return {'error': 'username, email, first name, last name, and password cannot be empty'}, 400
 
         role = user_input.get('role')
-        bio = user_input.get('bio')
 
         if not role:
             return {'error': "user's role, teacher or student, must be specified"}, 422
 
-        if role == 'teacher' and bio is None:
-            return {'error': 'bio is required for a teacher'}, 400
-
         try:
             fields.pop('password')
             if role == 'teacher':
-                user = Teacher(**fields, bio=bio)
+                user = Teacher(**fields)
 
             elif role == 'student':
                 user = Student(**fields)

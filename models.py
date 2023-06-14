@@ -73,7 +73,7 @@ class Teacher(db.Model, SerializerMixin):
     last_name = db.Column(db.String, nullable=False)
     avatar = db.Column(db.String)
     teaching_since = db.Column(db.DateTime)
-    bio = db.Column(db.String, nullable=False)
+    bio = db.Column(db.String)
     phone = db.Column(db.String)
     address_line1 = db.Column(db.String)
     address_line2 = db.Column(db.String)
