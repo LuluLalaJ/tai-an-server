@@ -17,6 +17,7 @@ class Student(db.Model, SerializerMixin):
 
 
     id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String, server_default="student", nullable=False)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     _password_hash = db.Column(db.String)
@@ -66,6 +67,7 @@ class Teacher(db.Model, SerializerMixin):
 
 
     id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String, server_default="teacher", nullable=False)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     _password_hash = db.Column(db.String)
