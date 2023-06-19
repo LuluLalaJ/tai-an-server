@@ -156,8 +156,8 @@ class Lessons(Resource):
                 return {'error': 'title, description, level, start time, end time, capacity, and price cannot be empty'}, 400
 
             #NEED TO VERIFY THE TYPE OF INPUT DATETIME FROM FRONTEND
-            start_time = datetime.strptime(lesson_data.get('start'), '%Y-%m-%d %H:%M:%S')
-            end_time = datetime.strptime(lesson_data.get('end'), '%Y-%m-%d %H:%M:%S')
+            start_time = datetime.fromisoformat(lesson_data.get('start'))
+            end_time = datetime.fromisoformat(lesson_data.get('end'))
             blackout_period_start = start_time - timedelta(hours=3)
             blackout_period_end = start_time + timedelta(hours=3)
             lessons = Lesson.query.filter(
@@ -198,7 +198,11 @@ class LessonById(Resource):
                 data = request.get_json()
                 try:
                     for attr, value in data.items():
+                        if attr in ["start", "end"]:
+                            value = datetime.fromisoformat(value)
                         setattr(lesson, attr, value)
+                    db.session.add(lesson)
+                    db.session.commit()
                     return lesson.to_dict(), 200
                 except IntegrityError:
                     return {'error': 'invalid input'}, 422

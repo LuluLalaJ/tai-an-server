@@ -143,15 +143,15 @@ class Lesson(db.Model, SerializerMixin):
 
     @validates('price')
     def check_price(self, key, price):
-        if price >= 0:
+        if float(price) >= 0:
             return price
         raise ValueError('lesson price must be positive')
 
-    @validates('end')
-    def validate_end(self, key, end):
-        if end > self.start:
-            return end
-        raise ValueError("lesson end datetime must be later than start datetime")
+    # @validates('end')
+    # def validate_end(self, key, end):
+    #     if end > self.start:
+    #         return end
+    #     raise ValueError("lesson end datetime must be later than start datetime")
 
     def __repr__(self):
         return f'<Lesson: {self.id} {self.title}>'
