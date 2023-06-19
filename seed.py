@@ -50,7 +50,7 @@ def seed_students(num_students):
             last_name=fake.last_name(),
             avatar=student_avatars[i],
             lesson_credit=random.randint(0, 300),
-            phone=fake.phone_number(),
+            phone="123-456-7890",
             address_line1=fake.street_address(),
             address_line2=fake.secondary_address(),
             city=fake.city(),
@@ -76,7 +76,7 @@ def seed_teachers(num_teachers):
             avatar=teacher_avatars[i],
             teaching_since=fake.date_this_century(),
             bio=fake.text(),
-            phone=fake.phone_number(),
+            phone="123-456-7890",
             address_line1=fake.street_address(),
             address_line2=fake.secondary_address(),
             city=fake.city(),
@@ -181,13 +181,11 @@ def seed_payments(num_payments, num_students):
 
 # Set the number of fake records you want to seed for each model
 NUM_STUDENTS = 10
-NUM_TEACHERS = 5
-NUM_LESSONS = 15
-NUM_ENROLLMENTS = 20
-NUM_FEEDBACKS = 10
+NUM_TEACHERS = 6
+NUM_LESSONS = 30
+NUM_ENROLLMENTS = 30
+NUM_FEEDBACKS = 30
 NUM_PAYMENTS = 10
-
-
 
 
 if __name__ == '__main__':

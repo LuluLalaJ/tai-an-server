@@ -88,7 +88,6 @@ class Teacher(db.Model, SerializerMixin):
     lessons = db.relationship("Lesson", back_populates="teacher", cascade="all, delete-orphan")
     students = association_proxy('lessons', 'enrollments.student', creator=lambda student: Enrollment(student=student))
 
-
     @hybrid_property
     def password_hash(self):
         raise AttributeError("Password hashes can't be viewed")
@@ -107,7 +106,11 @@ class Teacher(db.Model, SerializerMixin):
 class Lesson(db.Model, SerializerMixin):
     __tablename__ = "lessons"
 
-    serialize_rules = ("-enrollments.student", "-feedbacks")
+    serialize_rules = ("-enrollments.student.enrollments",
+                       "-enrollments.student.lessons",
+                       "-enrollments.student.teachers",
+                       "-enrollments.student.feedbacks",
+                       "-feedbacks")
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String, nullable=False)
@@ -164,7 +167,7 @@ class Enrollment(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     cost = db.Column(db.Numeric(8, 2), default=0)
     status = db.Column(db.Enum('registered', 'waitlisted', name='enrollment_status'), default='registered')
-
+    comment = db.Column(db.String, default="No feedback provided yet!")
 
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, onupdate=db.func.now())

@@ -4,7 +4,7 @@ from flask import request, make_response, session
 from flask_restful import Resource
 from sqlalchemy.exc import IntegrityError
 from config import app, db, api
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
 
 class Signup(Resource):
@@ -104,6 +104,11 @@ class TeacherById(Resource):
                 for attr in request.get_json():
                     #DOUBLE CHECK DATETIME
                     setattr(teacher, attr, request.json[attr])
+                try:
+                    db.session.add(teacher)
+                    db.session.commit()
+                except IntegrityError:
+                    return {'error': 'invalid input'}, 422
                 return teacher.to_dict(), 200
             return {'error': 'Teacher not found'}, 404
         return {'error': '401 Unauthorized'}, 401
@@ -125,8 +130,12 @@ class StudentById(Resource):
                 for attr, value in data.items():
                     if attr not in disallowed_field:
                         setattr(student, attr, value)
-                    else:
-                        return {'error': 'Write access forbidden'}, 403
+                    return {'error': 'Write access forbidden'}, 403
+                try:
+                    db.session.add(student)
+                    db.session.commit()
+                except IntegrityError:
+                    return {'error': 'invalid input'}, 422
                 return student.to_dict(), 200
             return {'error': 'Student not found'}, 404
         return {'error': '401 Unauthorized'}, 401
@@ -280,18 +289,26 @@ class EnrollmentsByLessonId(Resource):
             lesson = Lesson.query.filter_by(
                 id=lesson_id
             ).first()
+            student = Student.query.filter_by(
+                id=session['user_id']
+            ).first()
             if lesson:
+                if student.lesson_credit < lesson.price:
+                    return  {'error': 'Insufficient credit'}, 400
+
                 status = "waitlisted" if lesson.is_full else "registered"
                 new_enrollment = Enrollment(
-                    #POTENTIALLY CAN ADD DISCOUNT HERE
+                    # POTENTIALLY CAN ADD DISCOUNT HERE
                     cost=lesson.price,
                     status=status,
                     student_id=session['user_id'],
                     lesson_id=lesson_id
                 )
                 lesson.update_is_full()
+                student.lesson_credit = student.lesson_credit - lesson.price
                 try:
                     db.session.add(new_enrollment)
+                    db.session.add(student)
                     db.session.commit()
                     return new_enrollment.to_dict(), 201
                 except IntegrityError:
@@ -305,7 +322,8 @@ class IndividualEnrollmentByLessonId(Resource):
 
         # DOUBLE CHECK PATCH REQUEST
     def patch(self, lesson_id, enrollment_id):
-        if not session.get('user_id'):
+        role = session['role']
+        if not session.get('user_id') or (role == 'student'):
             return {'error': '401 Unauthorized'}, 401
 
         lesson = Lesson.query.filter_by(id=lesson_id).first()
@@ -317,39 +335,23 @@ class IndividualEnrollmentByLessonId(Resource):
             return {'error': 'Enrollment not found'}, 404
 
         user_id = session['user_id']
-        role = session['role']
-
-        if role == 'student':
-            if enrollment.student_id != user_id:
-                return {'error': '401 Unauthorized'}, 401
-            try:
-                enrollment.status = "cancelled"
-                db.session.commit()
-                lesson.update_is_full()
-                db.session.commit()
-                return {'message': 'Lesson is cancelled'}, 200
-
-            except IntegrityError:
-                return {'error': 'Invalid input'}, 422
-
-        elif role == 'teacher':
-            if lesson.teacher_id != user_id:
-                return {'error': '401 Unauthorized'}, 401
-            data = request.get_json()
-            try:
-                allowed_fields = ['cost', 'status']
-                for attr, value in data.items():
-                    if attr in allowed_fields:
-                        if attr == 'status' and value not in ['registered', 'cancelled', 'waitlisted']:
-                            return {'error': 'Invalid input'}, 422
-                        if attr == 'status' and value == 'registered' and lesson.is_full:
-                            value = "waitlisted"
-                        setattr(enrollment, attr, value)
-                lesson.update_is_full()  # Check and update is_full attribute
-                db.session.commit()
-                return enrollment.to_dict(), 200
-            except IntegrityError:
-                return {'error': 'Invalid input'}, 422
+        if lesson.teacher_id != user_id:
+            return {'error': '401 Unauthorized'}, 401
+        data = request.get_json()
+        try:
+            allowed_fields = ['cost', 'status', 'comment']
+            for attr, value in data.items():
+                if attr in allowed_fields:
+                    if attr == 'status' and value not in ['registered', 'waitlisted']:
+                        return {'error': 'Invalid input'}, 422
+                    if attr == 'status' and value == 'registered' and lesson.is_full:
+                        value = "waitlisted"
+                    setattr(enrollment, attr, value)
+            lesson.update_is_full()  # Check and update is_full attribute
+            db.session.commit()
+            return enrollment.to_dict(), 200
+        except IntegrityError:
+            return {'error': 'Invalid input'}, 422
 
     def delete(self, lesson_id, enrollment_id):
         if not session.get('user_id'):
@@ -370,6 +372,8 @@ class IndividualEnrollmentByLessonId(Resource):
             if enrollment.student_id != user_id:
                 return {'error': '401 Unauthorized'}, 401
             try:
+                student = enrollment.student
+                student.lesson_credit += lesson.price
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()
                 db.session.commit()
@@ -382,13 +386,14 @@ class IndividualEnrollmentByLessonId(Resource):
             if lesson.teacher_id != user_id:
                 return {'error': '401 Unauthorized'}, 401
             try:
+                student = enrollment.student
+                student.lesson_credit += lesson.price
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()  # Check and update is_full attribute
                 db.session.commit()
                 return {'message': 'Enrollment deleted'}, 200
             except IntegrityError:
                 return {'error': 'Invalid input'}, 422
-
 
 class PaymentsByStudentId(Resource):
     def get(self, student_id):
@@ -404,7 +409,6 @@ class PaymentsByStudentId(Resource):
 
 class FeedbacksByStudentId(Resource):
     pass
-
 
 class FeedbacksByLessonId(Resource):
     pass
@@ -456,12 +460,28 @@ class FeedbackById(Resource):
         except IntegrityError:
             return {'error': 'Invalid input'}, 422
 
+class StudentsByTeacherId(Resource):
+    def get(self, teacher_id):
+        if not session.get('user_id') or session['role'] != "teacher" or session['user_id'] != teacher_id:
+            return {'error': '401 Unauthorized'}, 401
+        teacher = Teacher.query.filter_by(id=teacher_id).first()
+        if not teacher:
+            return {'error': 'teacher not found'}, 404
+
+        students = teacher.students
+        if not students:
+            return {'error': 'student not found'}, 404
+
+        students_serialized = [s.to_dict() for s in students]
+        return students_serialized, 200
+
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
 api.add_resource(Login, '/login', endpoint='login')
 api.add_resource(Logout, '/logout', endpoint='logout')
 api.add_resource(Teachers,'/teachers', endpoint='teachers')
 api.add_resource(TeacherById, '/teachers/<int:id>', endpoint='teacher_by_id')
+api.add_resource(StudentsByTeacherId, '/teachers/<int:teacher_id>/students', endpoint='students_by_teacher_id')
 api.add_resource(StudentById, '/students/<int:id>', endpoint='student_by_id')
 api.add_resource(Lessons, '/lessons', endpoint='lessons')
 api.add_resource(LessonById, '/lessons/<int:id>', endpoint='lesson_by_id')
