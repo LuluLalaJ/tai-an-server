@@ -469,12 +469,14 @@ class StudentsByTeacherId(Resource):
             return {'error': 'teacher not found'}, 404
 
 
-        lessons = teacher.lessons
-        students = []
-        for lesson in lessons:
-            students.extend(lesson.enrollments)
+        # lessons = teacher.lessons
+        # students = []
+        # for lesson in lessons:
+        #     students.extend(lesson.enrollments)
 
+        students = Student.query.join(Enrollment).filter(Enrollment.lesson.has(teacher_id=teacher_id)).all()
         students_serialized = [s.to_dict() for s in students]
+
         return students_serialized, 200
 
 api.add_resource(Signup, '/signup', endpoint='signup')
