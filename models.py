@@ -163,7 +163,7 @@ class Enrollment(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     cost = db.Column(db.Numeric(8, 2), default=0)
-    status = db.Column(db.Enum('registered', 'cancelled', 'waitlisted', name='enrollment_status'), default='registered')
+    status = db.Column(db.Enum('registered', 'waitlisted', name='enrollment_status'), default='registered')
 
 
     created_at = db.Column(db.DateTime, server_default=db.func.now())

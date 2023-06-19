@@ -274,6 +274,7 @@ class EnrollmentsByLessonId(Resource):
             return {'error': 'Lesson not found'}, 404
         return {'error': '401 Unauthorized'}, 401
      #STUDENT ENROLL IN A LESSON
+     #NEED TO MAKE SURE STUDENT IS NOT ALREADY IN THE CLASS
     def post(self, lesson_id):
         if session.get('user_id') and session['role'] == 'student':
             lesson = Lesson.query.filter_by(
@@ -302,6 +303,7 @@ class IndividualEnrollmentByLessonId(Resource):
     def get(self, lesson_id, enrollment_id):
         pass
 
+        # DOUBLE CHECK PATCH REQUEST
     def patch(self, lesson_id, enrollment_id):
         if not session.get('user_id'):
             return {'error': '401 Unauthorized'}, 401
@@ -350,7 +352,43 @@ class IndividualEnrollmentByLessonId(Resource):
                 return {'error': 'Invalid input'}, 422
 
     def delete(self, lesson_id, enrollment_id):
-        pass
+        if not session.get('user_id'):
+            return {'error': '401 Unauthorized'}, 401
+
+        lesson = Lesson.query.filter_by(id=lesson_id).first()
+        if not lesson:
+            return {'error': 'Lesson not found'}, 404
+
+        enrollment = next((enrollment for enrollment in lesson.enrollments if enrollment.id == enrollment_id), None)
+        if not enrollment:
+            return {'error': 'Enrollment not found'}, 404
+
+        user_id = session['user_id']
+        role = session['role']
+
+        if role == 'student':
+            if enrollment.student_id != user_id:
+                return {'error': '401 Unauthorized'}, 401
+            try:
+                db.session.delete(enrollment)  # Delete the enrollment
+                lesson.update_is_full()
+                db.session.commit()
+                return {'message': 'Enrollment deleted'}, 200
+
+            except IntegrityError:
+                return {'error': 'Invalid input'}, 422
+
+        elif role == 'teacher':
+            if lesson.teacher_id != user_id:
+                return {'error': '401 Unauthorized'}, 401
+            try:
+                db.session.delete(enrollment)  # Delete the enrollment
+                lesson.update_is_full()  # Check and update is_full attribute
+                db.session.commit()
+                return {'message': 'Enrollment deleted'}, 200
+            except IntegrityError:
+                return {'error': 'Invalid input'}, 422
+
 
 class PaymentsByStudentId(Resource):
     def get(self, student_id):

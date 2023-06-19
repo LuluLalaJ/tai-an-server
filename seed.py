@@ -131,9 +131,9 @@ def seed_enrollments(num_enrollments, num_students, num_lessons):
         lesson = fake.random_element(lessons)
 
         if lesson.is_full:
-            status = random.choice(['waitlisted', 'cancelled'])
+            status = 'waitlisted'
         else:
-            status = random.choice(['registered', 'cancelled', 'waitlisted'])
+            status = 'registered'
 
         enrollment = Enrollment(
             cost=lesson.price,
