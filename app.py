@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-from flask import request, make_response, session
+from flask import request, make_response, session, redirect
 from flask_restful import Resource
 from sqlalchemy.exc import IntegrityError
-from config import app, db, api
+from config import app, db, api, stripe
 from datetime import datetime, timedelta, timezone
 from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
+
+YOUR_DOMAIN = 'http://localhost:4000'
 
 class Signup(Resource):
     def post(self):
@@ -481,6 +483,37 @@ class StudentsByTeacherId(Resource):
 
         return students_serialized, 200
 
+class Checkout(Resource):
+    def post(self):
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                line_items=[
+                    {
+                        # Provide the exact Price ID (for example, pr_1234) of the product you want to sell
+                        'price': 'price_1NL9syFn2n3otckJKJQgP5Nt',
+                        'quantity': 1,
+                    },
+                    {
+                        'price': 'price_1NL9scFn2n3otckJ9prL76e4',
+                        'quantity': 1,
+                    },
+                    {
+                        'price': 'price_1NL9rpFn2n3otckJfO3TD2NA',
+                        'quantity': 1,
+                    }
+                ],
+                mode='payment',
+                # success_url=YOUR_DOMAIN + '?success=true',
+                # cancel_url=YOUR_DOMAIN + '?canceled=true',
+                success_url=YOUR_DOMAIN + '/',
+                cancel_url=YOUR_DOMAIN + '/teachers',
+            )
+        except Exception as e:
+            return str(e)
+
+        return redirect(checkout_session.url, code=303)
+
+
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
 api.add_resource(Login, '/login', endpoint='login')
@@ -500,6 +533,7 @@ api.add_resource(FeedbacksByStudentId, '/students/<int:student_id>/feedbacks', e
 api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endpoint='feedbacks_by_lesson_id')
 api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
 api.add_resource(FeedbackById, '/feedbacks/<int:id>', endpoint='feedback_by_id')
+api.add_resource(Checkout, '/checkout', endpoint="checkout")
 
 
 if __name__ == '__main__':
