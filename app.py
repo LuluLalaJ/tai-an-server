@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
-from flask import request, make_response, session, redirect
+from flask import request, make_response, session, redirect, jsonify
 from flask_restful import Resource
 from sqlalchemy.exc import IntegrityError
-from config import app, db, api, stripe
+from config import app, db, api
 from datetime import datetime, timedelta, timezone
 from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
+import stripe
+import os
+from dotenv import load_dotenv, find_dotenv
 
-YOUR_DOMAIN = 'http://localhost:4000'
+load_dotenv(find_dotenv())
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 class Signup(Resource):
     def post(self):
@@ -513,6 +517,48 @@ class Checkout(Resource):
 
         return redirect(checkout_session.url, code=303)
 
+class ConfigResource(Resource):
+    # need to verify user?
+    def get(self):
+        return {'publishableKey': os.getenv('STRIPE_PUBLISHABLE_KEY')}
+
+@app.route('/create-payment-intent', methods=['GET'])
+def create_payment():
+    # Create a PaymentIntent with the amount, currency, and a payment method type.
+    #
+    # See the documentation [0] for the full list of supported parameters.
+    #
+    # [0] https://stripe.com/docs/api/payment_intents/create
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=1999,
+            currency='EUR',
+            automatic_payment_methods={
+                'enabled': True,
+            }
+        )
+
+        # Send PaymentIntent details to the front end.
+        return jsonify({'clientSecret': intent.client_secret})
+    except stripe.error.StripeError as e:
+        return jsonify({'error': {'message': str(e)}}), 400
+    except Exception as e:
+        return jsonify({'error': {'message': str(e)}}), 400
+
+
+# class PaymentIntentResource(Resource):
+#     def post(self):
+#         try:
+#             intent = stripe.PaymentIntent.create(
+#                 amount=200,
+#                 currency='USD',
+#                 confirm=True
+#             )
+#             return {'clientSecret': intent.client_secret}
+#         except stripe.error.StripeError as e:
+#             return {'error': {'message': str(e)}}, 400
+#         except Exception as e:
+#             return {'error': {'message': str(e)}}, 400
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
@@ -534,6 +580,8 @@ api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endp
 api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
 api.add_resource(FeedbackById, '/feedbacks/<int:id>', endpoint='feedback_by_id')
 api.add_resource(Checkout, '/checkout', endpoint="checkout")
+api.add_resource(ConfigResource, '/config')
+# api.add_resource(PaymentIntentResource, '/create-payment-intent')
 
 
 if __name__ == '__main__':

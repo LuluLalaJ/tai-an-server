@@ -6,7 +6,6 @@ from flask_restful import Api
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from dotenv import load_dotenv
-import stripe
 import os
 
 load_dotenv()
@@ -28,4 +27,3 @@ db.init_app(app)
 api = Api(app)
 CORS(app)
 bcrypt = Bcrypt(app)
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
