@@ -8,12 +8,10 @@ from config import db, bcrypt
 class Student(db.Model, SerializerMixin):
     __tablename__ = "students"
 
-    serialize_rules = ("-enrollments.lesson", "-feedbacks")
+    # serialize_rules = ("-enrollments.lesson", "-feedbacks")
 
-    # serialize_rules = (
-    #     ("-enrollments.lesson.teacher", "-enrollments.lesson.enrollments.student"),
-    #     "-feedbacks"
-    # )
+    serialize_rules = ("-enrollments.lesson.teacher", "-enrollments.lesson.enrollments.student",
+        "-feedbacks")
 
 
     id = db.Column(db.Integer, primary_key=True)
@@ -107,9 +105,8 @@ class Lesson(db.Model, SerializerMixin):
     __tablename__ = "lessons"
 
     serialize_rules = ("-enrollments.student.enrollments",
-                       "-enrollments.student.lessons",
-                       "-enrollments.student.teachers",
-                       "-enrollments.student.feedbacks",
+                    #    "-enrollments.student.teachers",
+                    #    "-enrollments.student.feedbacks",
                        "-feedbacks")
 
     id = db.Column(db.Integer, primary_key=True)
@@ -162,7 +159,7 @@ class Lesson(db.Model, SerializerMixin):
 class Enrollment(db.Model, SerializerMixin):
     __tablename__ = "enrollments"
 
-    serialize_rules = ("-student.enrollments", "-student.feedbacks", "-lesson")
+    serialize_rules = ("-student.enrollments", "-student.feedbacks", "-lesson.enrollments")
 
     id = db.Column(db.Integer, primary_key=True)
     cost = db.Column(db.Numeric(8, 2), default=0)

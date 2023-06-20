@@ -475,6 +475,8 @@ class StudentsByTeacherId(Resource):
         #     students.extend(lesson.enrollments)
 
         students = Student.query.join(Enrollment).filter(Enrollment.lesson.has(teacher_id=teacher_id)).all()
+        # students = Student.query.join(Student.enrollments).join(Enrollment.lesson).join(Lesson.teacher).filter(Teacher.id == teacher_id).all()
+
         students_serialized = [s.to_dict() for s in students]
 
         return students_serialized, 200
