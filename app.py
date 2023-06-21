@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import request, make_response, session, redirect, jsonify
+import json
 from flask_restful import Resource
 from sqlalchemy.exc import IntegrityError
 from config import app, db, api
@@ -9,9 +10,14 @@ from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
 import stripe
 import os
 from dotenv import load_dotenv, find_dotenv
+from decimal import Decimal
+
 
 load_dotenv(find_dotenv())
+credit_price = os.getenv('PRICE')
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+stripe.api_version = "2022-11-15"
+
 
 class Signup(Resource):
     def post(self):
@@ -487,78 +493,109 @@ class StudentsByTeacherId(Resource):
 
         return students_serialized, 200
 
-class Checkout(Resource):
-    def post(self):
-        try:
-            checkout_session = stripe.checkout.Session.create(
-                line_items=[
-                    {
-                        # Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-                        'price': 'price_1NL9syFn2n3otckJKJQgP5Nt',
-                        'quantity': 1,
-                    },
-                    {
-                        'price': 'price_1NL9scFn2n3otckJ9prL76e4',
-                        'quantity': 1,
-                    },
-                    {
-                        'price': 'price_1NL9rpFn2n3otckJfO3TD2NA',
-                        'quantity': 1,
-                    }
-                ],
-                mode='payment',
-                # success_url=YOUR_DOMAIN + '?success=true',
-                # cancel_url=YOUR_DOMAIN + '?canceled=true',
-                success_url=YOUR_DOMAIN + '/',
-                cancel_url=YOUR_DOMAIN + '/teachers',
-            )
-        except Exception as e:
-            return str(e)
+@app.route('/config', methods=['GET'])
+def get_publishable_key():
+    price = stripe.Price.retrieve(os.getenv('PRICE'))
+    return jsonify({
+      'publicKey': os.getenv('STRIPE_PUBLISHABLE_KEY'),
+      'unitAmount': price['unit_amount'],
+      'currency': price['currency']
+    })
 
-        return redirect(checkout_session.url, code=303)
+# Fetch the Checkout Session to display the JSON result on the success page
+@app.route('/checkout-session', methods=['GET'])
+def get_checkout_session():
+    id = request.args.get('sessionId')
+    checkout_session = stripe.checkout.Session.retrieve(id)
+    return jsonify(checkout_session)
 
-class ConfigResource(Resource):
-    # need to verify user?
-    def get(self):
-        return {'publishableKey': os.getenv('STRIPE_PUBLISHABLE_KEY')}
 
-@app.route('/create-payment-intent', methods=['GET'])
-def create_payment():
-    # Create a PaymentIntent with the amount, currency, and a payment method type.
-    #
-    # See the documentation [0] for the full list of supported parameters.
-    #
-    # [0] https://stripe.com/docs/api/payment_intents/create
+@app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    data = request.get_json()
+    quantity = data.get('quantity')
+    price = data.get('price')
+    metadata=data.get('metadata')
+    domain_url = os.getenv('DOMAIN')
+
     try:
-        intent = stripe.PaymentIntent.create(
-            amount=1999,
-            currency='EUR',
-            automatic_payment_methods={
-                'enabled': True,
-            }
+        # Create new Checkout Session for the order
+        # Other optional params include:
+        # [billing_address_collection] - to display billing address details on the page
+        # [customer] - if you have an existing Stripe Customer ID
+        # [payment_intent_data] - lets capture the payment later
+        # [customer_email] - lets you prefill the email input in the form
+        # [automatic_tax] - to automatically calculate sales tax, VAT and GST in the checkout page
+        # For full details see https://stripe.com/docs/api/checkout/sessions/create
+
+        # ?session_id={CHECKOUT_SESSION_ID} means the redirect will have the session ID set as a query param
+        checkout_session = stripe.checkout.Session.create(
+            success_url=domain_url + '/completion?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=domain_url + '/canceled',
+            mode='payment',
+            metadata=metadata,
+            # automatic_tax={'enabled': True},
+            line_items=[{
+                'price': price,
+                'quantity': quantity,
+            }],
         )
+        return jsonify({"url": checkout_session.url}), 200
 
-        # Send PaymentIntent details to the front end.
-        return jsonify({'clientSecret': intent.client_secret})
-    except stripe.error.StripeError as e:
-        return jsonify({'error': {'message': str(e)}}), 400
     except Exception as e:
-        return jsonify({'error': {'message': str(e)}}), 400
+        return jsonify(error=str(e)), 403
 
 
-# class PaymentIntentResource(Resource):
-#     def post(self):
-#         try:
-#             intent = stripe.PaymentIntent.create(
-#                 amount=200,
-#                 currency='USD',
-#                 confirm=True
-#             )
-#             return {'clientSecret': intent.client_secret}
-#         except stripe.error.StripeError as e:
-#             return {'error': {'message': str(e)}}, 400
-#         except Exception as e:
-#             return {'error': {'message': str(e)}}, 400
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    event = None
+    payload = request.data
+    endpoint_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
+
+    try:
+        event = json.loads(payload)
+    except:
+        print('⚠️  Webhook error while parsing basic request.' + str(e))
+        return jsonify(success=False)
+    if endpoint_secret:
+        # Only verify the event if there is an endpoint secret defined
+        # Otherwise use the basic event deserialized with json
+        sig_header = request.headers.get('stripe-signature')
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, endpoint_secret
+            )
+        except stripe.error.SignatureVerificationError as e:
+            print('⚠️  Webhook signature verification failed.' + str(e))
+            return jsonify(success=False)
+
+    # Handle the event
+    if event and event['type'] == 'checkout.session.completed':
+
+        checkout_session = event['data']['object']
+        paid = checkout_session["payment_status"] == "paid"
+        if paid:
+            amount = checkout_session['amount_total']
+            id = checkout_session['metadata']['id']
+            new_payment = Payment(
+                lesson_credit=amount/100,
+                student_id=id,
+            )
+            student = Student.query.filter_by(id=id).first()
+            student.lesson_credit += Decimal(str(amount/100))
+            db.session.add(new_payment)
+            db.session.commit()
+    elif event['type'] == 'payment_method.attached':
+        payment_method = event['data']['object']  # contains a stripe.PaymentMethod
+        # Then define and call a method to handle the successful attachment of a PaymentMethod.
+        # handle_payment_method_attached(payment_method)
+    else:
+        # Unexpected event type
+        print('Unhandled event type {}'.format(event['type']))
+
+    return jsonify(success=True)
+
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
@@ -579,9 +616,6 @@ api.add_resource(FeedbacksByStudentId, '/students/<int:student_id>/feedbacks', e
 api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endpoint='feedbacks_by_lesson_id')
 api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
 api.add_resource(FeedbackById, '/feedbacks/<int:id>', endpoint='feedback_by_id')
-api.add_resource(Checkout, '/checkout', endpoint="checkout")
-api.add_resource(ConfigResource, '/config')
-# api.add_resource(PaymentIntentResource, '/create-payment-intent')
 
 
 if __name__ == '__main__':
