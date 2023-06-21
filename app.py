@@ -509,7 +509,7 @@ def get_checkout_session():
     checkout_session = stripe.checkout.Session.retrieve(id)
     return jsonify(checkout_session)
 
-
+# stripe listen --forward-to localhost:5555/webhook
 @app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
     data = request.get_json()
