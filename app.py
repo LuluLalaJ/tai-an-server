@@ -6,7 +6,7 @@ from flask_restful import Resource
 from sqlalchemy.exc import IntegrityError
 from config import app, db, api
 from datetime import datetime, timedelta, timezone
-from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
+from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment, LessonCreditHistory
 import stripe
 import os
 from dotenv import load_dotenv, find_dotenv
@@ -326,7 +326,15 @@ class EnrollmentsByLessonId(Resource):
             status = "waitlisted"
         else:
             status = "registered"
+            old_credit = student.lesson_credit
             student.lesson_credit -= lesson.price
+            new_credit = student.lesson_credit
+            new_lesson_credit_history = LessonCreditHistory(
+                old_credit=old_credit,
+                new_credit=new_credit,
+                student_id=student.id,
+                memo="credit deduction after lesson registration"
+            )
 
         new_enrollment = Enrollment(
             cost=lesson.price,
@@ -338,6 +346,7 @@ class EnrollmentsByLessonId(Resource):
 
         try:
             db.session.add(new_enrollment)
+            db.session.add(new_lesson_credit_history)
             db.session.add(student)
             db.session.commit()
             return new_enrollment.to_dict(), 201
@@ -382,10 +391,27 @@ class IndividualEnrollmentByLessonId(Resource):
                         value = "waitlisted"
                     if attr == 'status' and not lesson.is_full:
                         if value == 'registered':
+                            old_credit = student.lesson_credit
                             student.lesson_credit -= enrollment.cost
+                            new_credit = student.lesson_credit
+                            new_lesson_credit_history = LessonCreditHistory(
+                                old_credit=old_credit,
+                                new_credit=new_credit,
+                                student_id=student.id,
+                                memo="credit deduction after being added to registered list"
+                            )
                         if value == 'waitlisted':
+                            old_credit = student.lesson_credit
                             student.lesson_credit += enrollment.cost
+                            new_credit = student.lesson_credit
+                            new_lesson_credit_history = LessonCreditHistory(
+                                old_credit=old_credit,
+                                new_credit=new_credit,
+                                student_id=student.id,
+                                memo="credit refund after being removed to waitlist"
+                            )
                     setattr(enrollment, attr, value)
+            db.session.add(new_lesson_credit_history)
             lesson.update_is_full()  # Check and update is_full attribute
             db.session.add(student)
             db.session.commit()
@@ -414,7 +440,16 @@ class IndividualEnrollmentByLessonId(Resource):
             try:
                 student = enrollment.student
                 if enrollment.status == "registered":
+                    old_credit = student.lesson_credit
                     student.lesson_credit += lesson.price
+                    new_credit = student.lesson_credit
+                    new_lesson_credit_history = LessonCreditHistory(
+                        old_credit=old_credit,
+                        new_credit=new_credit,
+                        student_id=student.id,
+                        memo="credit refund after lesson cancellation"
+                    )
+                db.session.add(new_lesson_credit_history)
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()
                 db.session.commit()
@@ -429,7 +464,16 @@ class IndividualEnrollmentByLessonId(Resource):
             try:
                 student = enrollment.student
                 if enrollment.status == "registered":
+                    old_credit = student.lesson_credit
                     student.lesson_credit += lesson.price
+                    new_credit = student.lesson_credit
+                    new_lesson_credit_history = LessonCreditHistory(
+                        old_credit=old_credit,
+                        new_credit=new_credit,
+                        student_id=student.id,
+                        memo="credit refund after lesson cancellation"
+                    )
+                db.session.add(new_lesson_credit_history)
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()  # Check and update is_full attribute
                 db.session.commit()
@@ -448,6 +492,19 @@ class PaymentsByStudentId(Resource):
 
         payments_serialized = [p.to_dict() for p in payments]
         return payments_serialized, 200
+
+class LessonCreditHistoryByStudentId(Resource):
+    def get(self, student_id):
+        if not (session.get('user_id') or  session['role'] == 'student'):
+            return {'error': '401 Unauthorized'}, 401
+
+        records = LessonCreditHistory.query.filter_by(student_id=student_id).all()
+        if not records:
+            return {'eror': 'History records not found'}, 404
+
+        records_serialized = [c.to_dict() for c in records]
+        return records_serialized, 200
+
 
 class FeedbacksByStudentId(Resource):
     pass
@@ -525,11 +582,8 @@ class StudentsByTeacherId(Resource):
 
 @app.route('/config', methods=['GET'])
 def get_publishable_key():
-    price = stripe.Price.retrieve(os.getenv('PRICE'))
     return jsonify({
       'publicKey': os.getenv('STRIPE_PUBLISHABLE_KEY'),
-      'unitAmount': price['unit_amount'],
-      'currency': price['currency']
     })
 
 # Fetch the Checkout Session to display the JSON result on the success page
@@ -539,6 +593,7 @@ def get_checkout_session():
     checkout_session = stripe.checkout.Session.retrieve(id)
     return jsonify(checkout_session)
 
+# stripe login -- maybe not needed
 # stripe listen --forward-to localhost:5555/webhook
 @app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
@@ -613,7 +668,17 @@ def webhook():
                 student_id=id,
             )
             student = Student.query.filter_by(id=id).first()
+            old_credit = student.lesson_credit
             student.lesson_credit += Decimal(str(amount/100))
+            new_credit = student.lesson_credit
+
+            new_lesson_credit_history = LessonCreditHistory(
+                old_credit=old_credit,
+                new_credit=new_credit,
+                student_id=id,
+                memo="purchase credit"
+            )
+            db.session.add(new_lesson_credit_history)
             db.session.add(new_payment)
             db.session.commit()
     elif event['type'] == 'payment_method.attached':
@@ -642,6 +707,8 @@ api.add_resource(LessonsByTeacherId, '/teachers/<int:teacher_id>/lessons', endpo
 api.add_resource(EnrollmentsByLessonId, '/lessons/<int:lesson_id>/enrollments', endpoint='enrollments_by_lesson_id')
 api.add_resource(IndividualEnrollmentByLessonId, '/lessons/<int:lesson_id>/enrollments/<int:enrollment_id>', endpoint='individual_enrollment_by_lesson_id')
 api.add_resource(PaymentsByStudentId,'/students/<int:student_id>/payments', endpoint='payments_by_student_id')
+api.add_resource(LessonCreditHistoryByStudentId,'/students/<int:student_id>/lessoncredithistory', endpoint='lessoncredithistory_by_student_id')
+
 api.add_resource(FeedbacksByStudentId, '/students/<int:student_id>/feedbacks', endpoint='feedbacks_by_student_id')
 api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endpoint='feedbacks_by_lesson_id')
 api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
