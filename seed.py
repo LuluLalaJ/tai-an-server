@@ -167,19 +167,19 @@ def seed_feedbacks(num_feedbacks, num_students, num_lessons):
     db.session.commit()
 
 # Seed fake data for payments
-def seed_payments(num_payments, num_students):
-    students = Student.query.limit(num_students).all()
-    amount = [50, 100, 150, 200, 250, 300]
+# def seed_payments(num_payments, num_students):
+#     students = Student.query.limit(num_students).all()
+#     amount = [50, 100, 150, 200, 250, 300]
 
-    for _ in range(num_payments):
-        student = fake.random_element(students)
-        payment = Payment(
-            lesson_credit=random.choice(amount),
-            student=student
-        )
-        db.session.add(payment)
+#     for _ in range(num_payments):
+#         student = fake.random_element(students)
+#         payment = Payment(
+#             lesson_credit=random.choice(amount),
+#             student=student
+#         )
+#         db.session.add(payment)
 
-    db.session.commit()
+#     db.session.commit()
 
 # Set the number of fake records you want to seed for each model
 NUM_STUDENTS = 10
@@ -205,4 +205,4 @@ if __name__ == '__main__':
         seed_lessons(NUM_LESSONS, NUM_TEACHERS)
         seed_enrollments(NUM_ENROLLMENTS, NUM_STUDENTS, NUM_LESSONS)
         seed_feedbacks(NUM_FEEDBACKS, NUM_STUDENTS, NUM_LESSONS)
-        seed_payments(NUM_PAYMENTS, NUM_STUDENTS)
+        # seed_payments(NUM_PAYMENTS, NUM_STUDENTS)
