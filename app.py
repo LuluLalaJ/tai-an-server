@@ -12,7 +12,6 @@ import os
 from dotenv import load_dotenv, find_dotenv
 from decimal import Decimal
 
-
 load_dotenv(find_dotenv())
 credit_price = os.getenv('PRICE')
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -409,10 +408,10 @@ class IndividualEnrollmentByLessonId(Resource):
 
 class PaymentsByStudentId(Resource):
     def get(self, student_id):
-        if not (session.get['user_id'] or session['role'] == 'student'):
+        if not (session.get('user_id') or  session['role'] == 'student'):
             return {'error': '401 Unauthorized'}, 401
 
-        payments = Payment.query.filter_by(student_id=student_id)
+        payments = Payment.query.filter_by(student_id=student_id).all()
         if not payments:
             return {'eror': 'Payment not found'}, 404
 
