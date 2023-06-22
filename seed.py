@@ -7,6 +7,7 @@ from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
 from assets.avatars import student_avatars, teacher_avatars
 fake = Faker()
 
+
 # Clear data from students table
 def clear_students():
     Student.query.delete()
@@ -121,6 +122,7 @@ def seed_lessons(num_lessons, num_teachers):
 
 
 # Seed fake data for enrollments
+# NEED TO MAKE SURE STUDENTS WHO HAVE ALREADY REGISTER/ENROLL SHOULD NOT REGISTE/ENROLL THE SAME CLASS AGAIN
 def seed_enrollments(num_enrollments, num_students, num_lessons):
     students = Student.query.limit(num_students).all()
     lessons = Lesson.query.limit(num_lessons).all()
