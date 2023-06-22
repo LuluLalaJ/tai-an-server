@@ -296,36 +296,53 @@ class EnrollmentsByLessonId(Resource):
      #STUDENT ENROLL IN A LESSON
      #NEED TO MAKE SURE STUDENT IS NOT ALREADY IN THE CLASS
     def post(self, lesson_id):
-        if session.get('user_id') and session['role'] == 'student':
-            lesson = Lesson.query.filter_by(
-                id=lesson_id
-            ).first()
-            student = Student.query.filter_by(
-                id=session['user_id']
-            ).first()
-            if lesson:
-                if student.lesson_credit < lesson.price:
-                    return  {'error': 'Insufficient credit'}, 400
+        if not session.get('user_id') or session['role'] != 'student':
+            return {'error': '401 Unauthorized'}, 401
 
-                status = "waitlisted" if lesson.is_full else "registered"
-                new_enrollment = Enrollment(
-                    # POTENTIALLY CAN ADD DISCOUNT HERE
-                    cost=lesson.price,
-                    status=status,
-                    student_id=session['user_id'],
-                    lesson_id=lesson_id
-                )
-                lesson.update_is_full()
-                student.lesson_credit = student.lesson_credit - lesson.price
-                try:
-                    db.session.add(new_enrollment)
-                    db.session.add(student)
-                    db.session.commit()
-                    return new_enrollment.to_dict(), 201
-                except IntegrityError:
-                    return {'error': 'invalid input'}, 422
+        lesson = Lesson.query.filter_by(
+            id=lesson_id
+        ).first()
+
+        if not lesson:
             return {'error': 'Lesson not found'}, 404
-        return {'error': '401 Unauthorized'}, 401
+
+        student_id = session['user_id']
+        enrollments = lesson.enrollments
+        already_enrolled = any(enrollment.student_id == student_id for enrollment in enrollments)
+        if already_enrolled:
+            return {'error': 'Already enrolled'}, 400
+
+        student = Student.query.filter_by(
+            id=student_id
+        ).first()
+        if not student:
+            return {'error': 'Student not found'}, 404
+
+        if student.lesson_credit < lesson.price:
+            return  {'error': 'Insufficient credit'}, 400
+
+
+        if lesson.is_full:
+            status = "waitlisted"
+        else:
+            status = "registered"
+            student.lesson_credit -= lesson.price
+
+        new_enrollment = Enrollment(
+            cost=lesson.price,
+            status=status,
+            student_id=student_id,
+            lesson_id=lesson_id
+        )
+        lesson.update_is_full()
+
+        try:
+            db.session.add(new_enrollment)
+            db.session.add(student)
+            db.session.commit()
+            return new_enrollment.to_dict(), 201
+        except IntegrityError:
+            return {'error': 'invalid input'}, 422
 
 class IndividualEnrollmentByLessonId(Resource):
     def get(self, lesson_id, enrollment_id):
@@ -349,6 +366,12 @@ class IndividualEnrollmentByLessonId(Resource):
         if lesson.teacher_id != user_id:
             return {'error': '401 Unauthorized'}, 401
         data = request.get_json()
+
+        student_id = enrollment.student_id
+        student = Student.query.filter_by(id=student_id).first()
+        if not student:
+            return {'error': 'Student not found'}, 404
+
         try:
             allowed_fields = ['cost', 'status', 'comment']
             for attr, value in data.items():
@@ -357,8 +380,14 @@ class IndividualEnrollmentByLessonId(Resource):
                         return {'error': 'Invalid input'}, 422
                     if attr == 'status' and value == 'registered' and lesson.is_full:
                         value = "waitlisted"
+                    if attr == 'status' and not lesson.is_full:
+                        if value == 'registered':
+                            student.lesson_credit -= enrollment.cost
+                        if value == 'waitlisted':
+                            student.lesson_credit += enrollment.cost
                     setattr(enrollment, attr, value)
             lesson.update_is_full()  # Check and update is_full attribute
+            db.session.add(student)
             db.session.commit()
             return enrollment.to_dict(), 200
         except IntegrityError:
@@ -384,7 +413,8 @@ class IndividualEnrollmentByLessonId(Resource):
                 return {'error': '401 Unauthorized'}, 401
             try:
                 student = enrollment.student
-                student.lesson_credit += lesson.price
+                if enrollment.status == "registered":
+                    student.lesson_credit += lesson.price
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()
                 db.session.commit()
@@ -398,7 +428,8 @@ class IndividualEnrollmentByLessonId(Resource):
                 return {'error': '401 Unauthorized'}, 401
             try:
                 student = enrollment.student
-                student.lesson_credit += lesson.price
+                if enrollment.status == "registered":
+                    student.lesson_credit += lesson.price
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()  # Check and update is_full attribute
                 db.session.commit()
