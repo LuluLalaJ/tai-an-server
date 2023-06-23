@@ -335,6 +335,8 @@ class EnrollmentsByLessonId(Resource):
                 student_id=student.id,
                 memo="credit deduction after lesson registration"
             )
+            db.session.add(new_lesson_credit_history)
+
 
         new_enrollment = Enrollment(
             cost=lesson.price,
@@ -346,7 +348,6 @@ class EnrollmentsByLessonId(Resource):
 
         try:
             db.session.add(new_enrollment)
-            db.session.add(new_lesson_credit_history)
             db.session.add(student)
             db.session.commit()
             return new_enrollment.to_dict(), 201
@@ -400,6 +401,8 @@ class IndividualEnrollmentByLessonId(Resource):
                                 student_id=student.id,
                                 memo="credit deduction after being added to registered list"
                             )
+                            db.session.add(new_lesson_credit_history)
+
                         if value == 'waitlisted':
                             old_credit = student.lesson_credit
                             student.lesson_credit += enrollment.cost
@@ -410,8 +413,8 @@ class IndividualEnrollmentByLessonId(Resource):
                                 student_id=student.id,
                                 memo="credit refund after being removed to waitlist"
                             )
+                            db.session.add(new_lesson_credit_history)
                     setattr(enrollment, attr, value)
-            db.session.add(new_lesson_credit_history)
             lesson.update_is_full()  # Check and update is_full attribute
             db.session.add(student)
             db.session.commit()
@@ -449,7 +452,7 @@ class IndividualEnrollmentByLessonId(Resource):
                         student_id=student.id,
                         memo="credit refund after lesson cancellation"
                     )
-                db.session.add(new_lesson_credit_history)
+                    db.session.add(new_lesson_credit_history)
                 db.session.delete(enrollment)  # Delete the enrollment
                 lesson.update_is_full()
                 db.session.commit()
