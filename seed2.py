@@ -3,10 +3,12 @@ import random
 from faker import Faker
 from app import app
 from config import db
-from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment
+from models import Student, Teacher, Lesson, Enrollment, Feedback, Payment, LessonCreditHistory
 from assets.avatars import student_avatars, teacher_avatars
 from assets.bio import bio_samples
 from assets.feedback import comments
+from assets.titles import lesson_titles
+from assets.lesson_content import lesson_content
 fake = Faker()
 
 def clear_students():
@@ -31,6 +33,10 @@ def clear_feedbacks():
 
 def clear_payments():
     Payment.query.delete()
+    db.session.commit()
+
+def clear_credit_history():
+    LessonCreditHistory.query.delete()
     db.session.commit()
 
 def seed_students(num_students):
@@ -85,9 +91,9 @@ def seed_teachers(num_teachers):
 
 # Seed fake data for lessons
 def seed_lessons(num_lessons, num_teachers):
-    for _ in range(num_lessons):
-        title = fake.catch_phrase()
-        description = fake.text()
+    for i in range(num_lessons):
+        title = lesson_titles[i]
+        description = lesson_content[i]
         level = fake.random_int(min=1, max=5)
 
         # Generate start and end datetime
@@ -122,21 +128,29 @@ def seed_enrollments(num_enrollments, num_students, num_lessons):
     lessons = Lesson.query.limit(num_lessons).all()
 
 
-    for _ in range(num_enrollments):
+    for i in range(num_enrollments):
         student = fake.random_element(students)
         lesson = fake.random_element(lessons)
 
-        if lesson.is_full:
-            status = 'waitlisted'
-        else:
-            status = 'registered'
+        if Enrollment.query.filter_by(student=student, lesson=lesson).first():
+            continue
 
-        enrollment = Enrollment(
-            cost=lesson.price,
-            status=status,
-            student=student,
-            lesson=lesson
-        )
+        if lesson.is_full:
+            enrollment = Enrollment(
+                cost=lesson.price,
+                status='waitlisted',
+                student=student,
+                lesson=lesson,
+            )
+
+        else:
+            enrollment = Enrollment(
+                cost=lesson.price,
+                status='registered',
+                student=student,
+                lesson=lesson,
+                comment=comments[i]
+            )
 
         db.session.add(enrollment)
         lesson.update_is_full()
@@ -177,6 +191,7 @@ if __name__ == '__main__':
         clear_enrollments()
         clear_feedbacks()
         clear_payments()
+        clear_credit_history()
         seed_students(NUM_STUDENTS)
         seed_teachers(NUM_TEACHERS)
         seed_lessons(NUM_LESSONS, NUM_TEACHERS)
