@@ -139,9 +139,9 @@ class StudentById(Resource):
                 disallowed_field = ['lesson_credit']
                 data = request.get_json()
                 for attr, value in data.items():
-                    if attr not in disallowed_field:
-                        setattr(student, attr, value)
-                    return {'error': 'Write access forbidden'}, 403
+                    if attr in disallowed_field:
+                        return {'error': 'Write access forbidden'}, 403
+                    setattr(student, attr, value)
                 try:
                     db.session.add(student)
                     db.session.commit()
