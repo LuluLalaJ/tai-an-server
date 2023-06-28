@@ -122,7 +122,6 @@ def seed_lessons(num_lessons, num_teachers):
 
 
 # Seed fake data for enrollments
-# NEED TO MAKE SURE STUDENTS WHO HAVE ALREADY REGISTER/ENROLL SHOULD NOT REGISTE/ENROLL THE SAME CLASS AGAIN
 def seed_enrollments(num_enrollments, num_students, num_lessons):
     students = Student.query.limit(num_students).all()
     lessons = Lesson.query.limit(num_lessons).all()
