@@ -50,6 +50,13 @@ class Student(db.Model, SerializerMixin):
         return bcrypt.check_password_hash(
             self._password_hash, password.encode('utf-8')
         )
+
+    @validates('lesson_credit')
+    def check_credit (self, key, credit):
+        if credit >= 0:
+            return credit
+        raise ValueError('lesson credit cannot be negative')
+
     def __repr__(self):
         return f'<Student: {self.id} {self.first_name} {self.last_name}>'
 

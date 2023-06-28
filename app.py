@@ -379,15 +379,18 @@ class IndividualEnrollmentByLessonId(Resource):
                     if attr == 'status' and not lesson.is_full:
                         if value == 'registered':
                             old_credit = student.lesson_credit
-                            student.lesson_credit -= enrollment.cost
-                            new_credit = student.lesson_credit
-                            new_lesson_credit_history = LessonCreditHistory(
-                                old_credit=old_credit,
-                                new_credit=new_credit,
-                                student_id=student.id,
-                                memo="credit deduction after being added to registered list"
-                            )
-                            db.session.add(new_lesson_credit_history)
+                            if old_credit < enrollment.cost:
+                                return  {'error': 'Insufficient credit'}, 400
+                            else:
+                                student.lesson_credit -= enrollment.cost
+                                new_credit = student.lesson_credit
+                                new_lesson_credit_history = LessonCreditHistory(
+                                    old_credit=old_credit,
+                                    new_credit=new_credit,
+                                    student_id=student.id,
+                                    memo="credit deduction after being added to registered list"
+                                )
+                                db.session.add(new_lesson_credit_history)
 
                         if value == 'waitlisted':
                             old_credit = student.lesson_credit
