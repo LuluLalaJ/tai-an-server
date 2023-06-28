@@ -508,13 +508,6 @@ class LessonCreditHistoryByStudentId(Resource):
         records_serialized = [c.to_dict() for c in records]
         return records_serialized, 200
 
-
-class FeedbacksByStudentId(Resource):
-    pass
-
-class FeedbacksByLessonId(Resource):
-    pass
-
 class FeedbackByStudentAndLessonId(Resource):
     def get(self, student_id, lesson_id):
         if not session.get('user_id'):
@@ -711,9 +704,6 @@ api.add_resource(EnrollmentsByLessonId, '/lessons/<int:lesson_id>/enrollments', 
 api.add_resource(IndividualEnrollmentByLessonId, '/lessons/<int:lesson_id>/enrollments/<int:enrollment_id>', endpoint='individual_enrollment_by_lesson_id')
 api.add_resource(PaymentsByStudentId,'/students/<int:student_id>/payments', endpoint='payments_by_student_id')
 api.add_resource(LessonCreditHistoryByStudentId,'/students/<int:student_id>/lessoncredithistory', endpoint='lessoncredithistory_by_student_id')
-
-api.add_resource(FeedbacksByStudentId, '/students/<int:student_id>/feedbacks', endpoint='feedbacks_by_student_id')
-api.add_resource(FeedbacksByLessonId, '/lessons/<int:lesson_id>/feedbacks', endpoint='feedbacks_by_lesson_id')
 api.add_resource(FeedbackByStudentAndLessonId, '/students/<int:student_id>/lessons/<int:lesson_id>/feedback', endpoint='feedback_by_student_and_lesson_id')
 api.add_resource(FeedbackById, '/feedbacks/<int:id>', endpoint='feedback_by_id')
 

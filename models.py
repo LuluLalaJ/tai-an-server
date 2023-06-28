@@ -8,11 +8,8 @@ from config import db, bcrypt
 class Student(db.Model, SerializerMixin):
     __tablename__ = "students"
 
-    # serialize_rules = ("-enrollments.lesson", "-feedbacks")
-
     serialize_rules = ("-enrollments.lesson.teacher", "-enrollments.lesson.enrollments.student",
         "-feedbacks", "-lesson_credit_history.student",)
-
 
     id = db.Column(db.Integer, primary_key=True)
     role = db.Column(db.String, server_default="student", nullable=False)
