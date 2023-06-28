@@ -53,22 +53,6 @@ class Student(db.Model, SerializerMixin):
     def __repr__(self):
         return f'<Student: {self.id} {self.first_name} {self.last_name}>'
 
-class LessonCreditHistory(db.Model, SerializerMixin):
-    __tablename__ = "lessoncredithistories"
-    serialize_rules = ("-student.lesson_credit_history",)
-
-
-    id = db.Column(db.Integer, primary_key=True)
-    old_credit = db.Column(db.Numeric(8, 2), nullable=False)
-    new_credit = db.Column(db.Numeric(8, 2), nullable=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
-    memo = db.Column(db.String)
-    student_id = db.Column(db.Integer, db.ForeignKey("students.id"))
-
-    student = db.relationship("Student", back_populates="lesson_credit_history")
-
-
-
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = "teachers"
 
@@ -239,6 +223,20 @@ class Payment(db.Model, SerializerMixin):
 
     def __repr__(self):
         return f'<Payment: {self.id} for ${self.lesson_credit}>'
+
+class LessonCreditHistory(db.Model, SerializerMixin):
+    __tablename__ = "lessoncredithistories"
+    serialize_rules = ("-student.lesson_credit_history",)
+
+
+    id = db.Column(db.Integer, primary_key=True)
+    old_credit = db.Column(db.Numeric(8, 2), nullable=False)
+    new_credit = db.Column(db.Numeric(8, 2), nullable=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+    memo = db.Column(db.String)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"))
+
+    student = db.relationship("Student", back_populates="lesson_credit_history")
 
 class ShoppingCart(db.Model, SerializerMixin):
     __tablename__ = "shoppingcarts"

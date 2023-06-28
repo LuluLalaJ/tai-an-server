@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 from flask import request, make_response, session, redirect, jsonify
 import json
 from flask_restful import Resource
@@ -95,25 +94,21 @@ class Logout(Resource):
 class Teachers(Resource):
     def get(self):
         teachers = Teacher.query.all()
-        #MAYBE ADD RULES TO SERIALIZE TO DELETE PRIVATE INFO
         teachers_serialized = [teacher.to_dict() for teacher in teachers]
         return teachers_serialized, 200
 
 class TeacherById(Resource):
     def get(self, id):
-        #SIGNED IN TEACHER CAN ONLY GET THEIR OWN INFO
         if session.get('user_id') and session['role'] == 'teacher' and session['user_id'] == id:
             teacher = Teacher.query.filter_by(id=session['user_id']).first()
             return teacher.to_dict(), 200
         return {'error': '401 Unauthorized'}, 401
 
-    #TEACHER EDITING PROFILE
     def patch(self, id):
         if session.get('user_id') and session['role'] == 'teacher' and session['user_id'] == id:
             teacher = Teacher.query.filter_by(id=id).first()
             if teacher:
                 for attr in request.get_json():
-                    #DOUBLE CHECK DATETIME
                     setattr(teacher, attr, request.json[attr])
                 try:
                     db.session.add(teacher)
@@ -175,7 +170,6 @@ class Lessons(Resource):
             if any(value is None for value in fields.values()):
                 return {'error': 'title, description, level, start time, end time, capacity, and price cannot be empty'}, 400
 
-            #NEED TO VERIFY THE TYPE OF INPUT DATETIME FROM FRONTEND
             start_time = datetime.fromisoformat(lesson_data.get('start'))
             end_time = datetime.fromisoformat(lesson_data.get('end'))
             blackout_period_start = start_time - timedelta(hours=3)
@@ -210,7 +204,6 @@ class LessonById(Resource):
             return {'error': 'Lesson not found'}, 404
         return {'error': '401 Unauthorized'}, 401
 
-    #TEACHER EDIT A LESSON
     def patch(self, id):
         if session.get('user_id') and session['role'] == 'teacher':
             lesson = Lesson.query.filter_by(id=id, teacher_id=session['user_id']).first()
@@ -229,7 +222,6 @@ class LessonById(Resource):
             return {'error': 'Lesson not found'}, 404
         return {'error': '401 Unauthorized'}, 401
 
-    #TEACHER DELETE A LESSON
     def delete(self, id):
         if session.get('user_id') and session['role'] == 'teacher':
             lesson = Lesson.query.filter_by(id=id, teacher_id=session['user_id']).first()
@@ -279,7 +271,6 @@ class LessonsByTeacherId(Resource):
         return lessons_serialized, 200
 
 class EnrollmentsByLessonId(Resource):
-    #TEACHER GET ENROLLMENT OF THEIR OWN LESSON
     def get(self, lesson_id):
         if session.get('user_id') and session['role'] == 'teacher':
             lesson = Lesson.query.filter_by(
@@ -293,8 +284,7 @@ class EnrollmentsByLessonId(Resource):
                 return enroll_serialized, 200
             return {'error': 'Lesson not found'}, 404
         return {'error': '401 Unauthorized'}, 401
-     #STUDENT ENROLL IN A LESSON
-     #NEED TO MAKE SURE STUDENT IS NOT ALREADY IN THE CLASS
+
     def post(self, lesson_id):
         if not session.get('user_id') or session['role'] != 'student':
             return {'error': '401 Unauthorized'}, 401
@@ -355,10 +345,6 @@ class EnrollmentsByLessonId(Resource):
             return {'error': 'invalid input'}, 422
 
 class IndividualEnrollmentByLessonId(Resource):
-    def get(self, lesson_id, enrollment_id):
-        pass
-
-        # DOUBLE CHECK PATCH REQUEST
     def patch(self, lesson_id, enrollment_id):
         role = session['role']
         if not session.get('user_id') or (role == 'student'):
@@ -415,7 +401,7 @@ class IndividualEnrollmentByLessonId(Resource):
                             )
                             db.session.add(new_lesson_credit_history)
                     setattr(enrollment, attr, value)
-            lesson.update_is_full()  # Check and update is_full attribute
+            lesson.update_is_full()
             db.session.add(student)
             db.session.commit()
             return enrollment.to_dict(), 200
@@ -453,7 +439,7 @@ class IndividualEnrollmentByLessonId(Resource):
                         memo="credit refund after lesson cancellation"
                     )
                     db.session.add(new_lesson_credit_history)
-                db.session.delete(enrollment)  # Delete the enrollment
+                db.session.delete(enrollment)
                 lesson.update_is_full()
                 db.session.commit()
                 return {'message': 'Enrollment deleted'}, 200
@@ -476,9 +462,9 @@ class IndividualEnrollmentByLessonId(Resource):
                         student_id=student.id,
                         memo="credit refund after lesson cancellation"
                     )
-                db.session.add(new_lesson_credit_history)
-                db.session.delete(enrollment)  # Delete the enrollment
-                lesson.update_is_full()  # Check and update is_full attribute
+                    db.session.add(new_lesson_credit_history)
+                db.session.delete(enrollment)
+                lesson.update_is_full()
                 db.session.commit()
                 return {'message': 'Enrollment deleted'}, 200
             except IntegrityError:
@@ -563,15 +549,7 @@ class StudentsByTeacherId(Resource):
         if not teacher:
             return {'error': 'teacher not found'}, 404
 
-
-        # lessons = teacher.lessons
-        # students = []
-        # for lesson in lessons:
-        #     students.extend(lesson.enrollments)
-
         students = Student.query.join(Enrollment).filter(Enrollment.lesson.has(teacher_id=teacher_id)).all()
-        # students = Student.query.join(Student.enrollments).join(Enrollment.lesson).join(Lesson.teacher).filter(Teacher.id == teacher_id).all()
-
         students_serialized = [s.to_dict() for s in students]
 
         return students_serialized, 200
@@ -582,14 +560,12 @@ def get_publishable_key():
       'publicKey': os.getenv('STRIPE_PUBLISHABLE_KEY'),
     })
 
-# Fetch the Checkout Session to display the JSON result on the success page
 @app.route('/checkout-session', methods=['GET'])
 def get_checkout_session():
     id = request.args.get('sessionId')
     checkout_session = stripe.checkout.Session.retrieve(id)
     return jsonify(checkout_session)
 
-# stripe login -- maybe not needed
 # stripe listen --forward-to localhost:5555/webhook
 @app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
@@ -600,22 +576,11 @@ def create_checkout_session():
     domain_url = os.getenv('DOMAIN')
 
     try:
-        # Create new Checkout Session for the order
-        # Other optional params include:
-        # [billing_address_collection] - to display billing address details on the page
-        # [customer] - if you have an existing Stripe Customer ID
-        # [payment_intent_data] - lets capture the payment later
-        # [customer_email] - lets you prefill the email input in the form
-        # [automatic_tax] - to automatically calculate sales tax, VAT and GST in the checkout page
-        # For full details see https://stripe.com/docs/api/checkout/sessions/create
-
-        # ?session_id={CHECKOUT_SESSION_ID} means the redirect will have the session ID set as a query param
         checkout_session = stripe.checkout.Session.create(
             success_url=domain_url + '/completion?session_id={CHECKOUT_SESSION_ID}',
             cancel_url=domain_url + '/canceled',
             mode='payment',
             metadata=metadata,
-            # automatic_tax={'enabled': True},
             line_items=[{
                 'price': price,
                 'quantity': quantity,
@@ -640,8 +605,6 @@ def webhook():
         print('⚠️  Webhook error while parsing basic request.' + str(e))
         return jsonify(success=False)
     if endpoint_secret:
-        # Only verify the event if there is an endpoint secret defined
-        # Otherwise use the basic event deserialized with json
         sig_header = request.headers.get('stripe-signature')
         try:
             event = stripe.Webhook.construct_event(
@@ -651,7 +614,6 @@ def webhook():
             print('⚠️  Webhook signature verification failed.' + str(e))
             return jsonify(success=False)
 
-    # Handle the event
     if event and event['type'] == 'checkout.session.completed':
 
         checkout_session = event['data']['object']
@@ -678,11 +640,8 @@ def webhook():
             db.session.add(new_payment)
             db.session.commit()
     elif event['type'] == 'payment_method.attached':
-        payment_method = event['data']['object']  # contains a stripe.PaymentMethod
-        # Then define and call a method to handle the successful attachment of a PaymentMethod.
-        # handle_payment_method_attached(payment_method)
+        payment_method = event['data']['object']
     else:
-        # Unexpected event type
         print('Unhandled event type {}'.format(event['type']))
 
     return jsonify(success=True)
