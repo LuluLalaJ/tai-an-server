@@ -146,6 +146,19 @@ class StudentById(Resource):
             return {'error': 'Student not found'}, 404
         return {'error': '401 Unauthorized'}, 401
 
+    def delete(self, id):
+        if session.get('user_id') and session['role'] == 'teacher':
+            student = Student.query.filter_by(id=id).first()
+            if student:
+                try:
+                    db.session.delete(student)
+                    db.session.commit()
+                except IntegrityError:
+                    return {'error': 'invalid input'}, 422
+                return {}, 204
+            return {'error': 'Student not found'}, 404
+        return {'error': '401 Unauthorized'}, 401
+
 class Lessons(Resource):
     def get(self):
         if session.get('user_id'):
