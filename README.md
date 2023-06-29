@@ -1,5 +1,5 @@
 # Tai-an Tea School Server
-This is a Python Backend with Flask for the [Tai-an Tea School](https://github.com/LuluLalaJ/tai-an-client) front-end website written in JavaScript with React and Redux. The lesson management website provides tea teachers and students a streamlined and efficient platform for lesson registration and feedback. The seed data is
+This is a Python Backend with Flask for the [Tai-an Tea School](https://github.com/LuluLalaJ/tai-an-client) front-end website written in JavaScript with React and Redux. The lesson management website provides tea teachers and students a streamlined and efficient platform for lesson registration and feedback. 
 
 ## Installation
 Clone this repository, install necessary dependencies for backend with `pipenv install && pipenv shell`. You will also need to set up the database by running:
